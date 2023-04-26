@@ -6,27 +6,22 @@
 #include <Wire.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
-//#include <MPU6050.h>
-
-
-
 #define led D0
 
 // Wi-Fi credentials
-const char* ssid = "Jackson's Galaxy S22 Ultra";                 //"R15-8FB3";
-const char* password = "Redwine21";             //"aukqh47834";
+const char* ssid = "networkname";   //"R15-8FB3";
+const char* password = "password";  //"";
 
 // MPU6050 Slave Device Address
 const uint8_t MPU6050SlaveAddress = 0x68;
 
 // ThingSpeak details
 unsigned long myChannelNumber = 2036323;
-const char* myWriteAPIKey = "BRDOZW0TN4B3TTF5";
+const char* myWriteAPIKey = "BRDOXXXXXXXXX";
 
 // Ultrasonic sensor
 const int trigPin = 12;
 const int echoPin = 14;
-const int tiltSensorPin = A0;  // analog pin connected to the tilt sensor
 
 // Select SDA and SCL pins for I2C communication
 const uint8_t scl = D4;
@@ -50,36 +45,40 @@ const uint8_t MPU6050_REGISTER_ACCEL_XOUT_H = 0x3B;
 const uint8_t MPU6050_REGISTER_SIGNAL_PATH_RESET = 0x68;
 
 int16_t AccelX, AccelY, AccelZ, Temperature, GyroX, GyroY, GyroZ;
-//MPU6050 mpu;
+
 // Water consumption parameters
-float consumptionGoal = 700.0;
+float consumptionGoal = 600.0;
 float bottles = 0.0;
 float waterLevel = 0.0;
 float previousWaterLevel;  // Set initial water level to full
 float consumption = 0;
-float height = 11;  // The height or volume of the bottle (depends on the units being used)
+float height = 8.5;  // The height or volume of the bottle (depends on the units being used)
 float distance = 0;
 float toreachGoal = 0;
 int idletime = 0;
 float bottleConsumption = 0;
 float actualconsumption = 0;
+
 // Set your NTP Server and Timezone
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 3600;
 const int daylightOffset_sec = 0;
+
 RTC_DS1307 rtc;
+
 struct tm timeinfo;
 WiFiClient client;
-float volume = 600;
+
+float volume = 400;
 // Calculate the radius of the cylinder using the formula for the volume of a cylinder
 float radius = sqrt(volume / (PI * height));
 // Define a flag variable to ensure that previous_water_level is only initialized once
 bool initialized = false;
+
 void setup() {
   Serial.begin(115200);
   Wire.begin(sda, scl);
   MPU6050_Init();
-  //mpu.initialize();
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -97,7 +96,6 @@ void setup() {
   pinMode(echoPin, INPUT);
   pinMode(led, OUTPUT);
 
-  //previousWaterLevel = 12;
   // Initialize the RTC module
   Wire.begin();
   rtc.begin();
@@ -127,7 +125,7 @@ void sendtoThings() {
 }
 
 void loop() {
-
+  //GY-521 Params
   double Ax, Ay, Az, T, Gx, Gy, Gz;
   //divide each with their sensitivity scale factor
   Ax = (double)AccelX / AccelScaleFactor;
@@ -143,16 +141,16 @@ void loop() {
   Serial.print(pitch);
   Serial.print(" Roll");
   Serial.println(roll);
+
   // check for bottle orientation
-  if (abs(pitch) > 30 || abs(roll) > 30 || abs(Gx) > 10 || abs(Gy) > 10) {  //Pitch -ve means back +ve means front, roll -ve means left and roll +ve means right.
+  if (abs(pitch) > 25 || abs(roll) > 25 || abs(Gx) > 5 || abs(Gy) > 5) {  //Pitch -ve means back +ve means front, roll -ve means left and roll +ve means right.
     Serial.println("Bottle not upright or is shaking");
 
   } else {
     Serial.println("Good to take measurements since the bottle is stable and upright");
+
     time_t currentTime = time(nullptr);
-
     localtime_r(&currentTime, &timeinfo);
-
     Serial.print("Current time is: ");
     Serial.println(asctime(&timeinfo));
 
@@ -169,16 +167,17 @@ void loop() {
     distance = duration * 0.034 / 2;
     Serial.print("DISTANCE");
     Serial.println(distance);
-    // Calculate the volume of the empty space in the cylinder using the formula for the volume of a frustrum
-    //float empty_volume = (PI/3) * distance * (pow(radius,2) + radius * distance + pow(distance,2));
+
     // calculate the current water level
-    float h_water = height -  distance;
-    waterLevel = PI * pow(radius,2) * h_water;
+    float h_water = height - distance;
+    waterLevel = PI * pow(radius, 2) * h_water;
+
     Serial.print("WaterLevel: ");
     Serial.println(waterLevel);
+
     // Initialize the previous water level to the current water level on the first loop iteration
     if (!initialized) {
-    float previousWaterLevel = waterLevel;
+      previousWaterLevel = waterLevel;
       initialized = true;
     }
     if ((waterLevel < previousWaterLevel) && (waterLevel >= 0)) {
@@ -203,18 +202,18 @@ void loop() {
       Serial.println(consumption);
       toreachGoal = consumptionGoal - consumption;
       if (toreachGoal < 0) {
-        //toreachGoal = 0;
+        toreachGoal = abs(toreachGoal);
       }
       // Update ThingSpeak with water level and consumption data
       sendtoThings();
-
+      bottles = 0;
       if (consumption < consumptionGoal) {
         Serial.print(toreachGoal);
         Serial.println(" left to reach your goal.");
       }
       if (consumption >= consumptionGoal) {
         Serial.println("Goal achieved, congs! Goal reset!");
-        consumptionGoal = 700 + consumption;
+        consumptionGoal = 600 + consumption;
       }
       previousWaterLevel = waterLevel;
       idletime = 0;
@@ -230,7 +229,7 @@ void loop() {
       actualconsumption = 0;
       sendtoThings();
 
-    } else if (waterLevel > previousWaterLevel) {
+    } else if (waterLevel > previousWaterLevel && ((waterLevel - previousWaterLevel) > 20)) {
       idletime = 0;
       bottles = 0;
       actualconsumption = 0;
@@ -238,23 +237,13 @@ void loop() {
       // Update ThingSpeak with water level and consumption data
       sendtoThings();
       previousWaterLevel = waterLevel;
-    } else if (waterLevel >= previousWaterLevel - 0.00015 && waterLevel <= previousWaterLevel + 0.00015) {
-      idletime += 15;  // increment by 15 seconds (delay time)
+    }
+    if (waterLevel >= previousWaterLevel - 0.00015 && waterLevel <= previousWaterLevel + 0.00015) {
+      idletime += 15;
       Serial.println("Please take water");
       digitalWrite(led, HIGH);
-      // Update ThingSpeak with water level and consumption data
-      ThingSpeak.setField(1, previousWaterLevel);
-      ThingSpeak.setField(2, waterLevel);
-      ThingSpeak.setField(3, 0);
-      ThingSpeak.setField(4, 0);
-      ThingSpeak.setField(5, 0);
-      ThingSpeak.setField(6, 0);
-      ThingSpeak.setField(7, idletime);
-      ThingSpeak.setField(8, asctime(&timeinfo));
-      ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+      ThingSpeak.writeField(myChannelNumber, 7, idletime, myWriteAPIKey);
     }
-    // Wait for 1 second before taking another measurement
-    
   }
   Read_RawValue(MPU6050SlaveAddress, MPU6050_REGISTER_ACCEL_XOUT_H);
 
@@ -272,7 +261,7 @@ void loop() {
   Serial.print(Gy);
   Serial.print(" Gz: ");
   Serial.println(Gz);
-  delay(15000);
+  delay(15000);  //wait for 15s and take another measurement
 }
 
 void I2C_Write(uint8_t deviceAddress, uint8_t regAddress, uint8_t data) {
