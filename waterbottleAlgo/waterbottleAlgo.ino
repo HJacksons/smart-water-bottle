@@ -1,3 +1,4 @@
+// Include directives
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ThingSpeak.h>
@@ -6,32 +7,23 @@
 #include <Wire.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+
+// Constants and Definitions
 #define led D0
 
 // Wi-Fi credentials
 const char* ssid = "networkname";   //"";
 const char* password = "password";  //"";
 
-// MPU6050 Slave Device Address
-const uint8_t MPU6050SlaveAddress = 0x68;
 
 // ThingSpeak details
 unsigned long myChannelNumber = 2036323;
 const char* myWriteAPIKey = "BRDOXXXXXXXXX";
 
-// Ultrasonic sensor
-const int trigPin = 12;
-const int echoPin = 14;
-
-// Select SDA and SCL pins for I2C communication
-const uint8_t scl = D4;
-const uint8_t sda = D3;
-
-// sensitivity scale factor respective to full scale setting provided in datasheet
+// MPU6050 Configurations
+const uint8_t MPU6050SlaveAddress = 0x68;
 const uint16_t AccelScaleFactor = 16384;
 const uint16_t GyroScaleFactor = 131;
-
-// MPU6050 few configuration register addresses
 const uint8_t MPU6050_REGISTER_SMPLRT_DIV = 0x19;
 const uint8_t MPU6050_REGISTER_USER_CTRL = 0x6A;
 const uint8_t MPU6050_REGISTER_PWR_MGMT_1 = 0x6B;
@@ -44,36 +36,48 @@ const uint8_t MPU6050_REGISTER_INT_ENABLE = 0x38;
 const uint8_t MPU6050_REGISTER_ACCEL_XOUT_H = 0x3B;
 const uint8_t MPU6050_REGISTER_SIGNAL_PATH_RESET = 0x68;
 
-int16_t AccelX, AccelY, AccelZ, Temperature, GyroX, GyroY, GyroZ;
+// Ultrasonic sensor
+const int trigPin = 12;
+const int echoPin = 14;
+
+// I2C Configuration
+const uint8_t scl = D4;
+const uint8_t sda = D3;
+
+// NTP Configuration
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 3600;
+const int daylightOffset_sec = 0;
 
 // Water consumption parameters
-float consumptionGoal = 600.0; // Set your daily water consumption goal (in ml)
-float bottles = 0.0; // Number of bottles consumed
+float consumptionGoal = 600.0;
+float bottles = 0.0;
 float waterLevel = 0.0;
-float previousWaterLevel;  // Set initial water level to full
-float consumption = 0; // Set initial water consumption to 0
-float height = 8.5;  //  Set the height of the bottle (in cm)
-float distance = 0; // Set initial distance to 0
+float previousWaterLevel;
+float consumption = 0;
+float height = 8.5;
+float distance = 0;
 float toreachGoal = 0;
 int idletime = 0;
 float bottleConsumption = 0;
 float actualconsumption = 0;
+float volume = 400;
+float radius = sqrt(volume / (PI * height));
+bool initialized = false;
 
-// Set your NTP Server and Timezone
-const char* ntpServer = "pool.ntp.org"; // Set NTP server
-const long gmtOffset_sec = 3600; // Set GMT offset in seconds
-const int daylightOffset_sec = 0;
+// Global variables
+int16_t AccelX, AccelY, AccelZ, Temperature, GyroX, GyroY, GyroZ;
+
 
 RTC_DS1307 rtc;
-
 struct tm timeinfo;
 WiFiClient client;
 
-float volume = 400;
-// Calculate the radius of the cylinder using the formula for the volume of a cylinder
-float radius = sqrt(volume / (PI * height));
-// Define a flag variable to ensure that previous_water_level is only initialized once
-bool initialized = false;
+// Function prototypes
+void I2C_Write(uint8_t deviceAddress, uint8_t regAddress, uint8_t data);
+void Read_RawValue(uint8_t deviceAddress, uint8_t regAddress);
+void MPU6050_Init();
+void sendtoThings();
 
 void setup() {
   Serial.begin(115200);
@@ -110,18 +114,6 @@ void setup() {
   }
 
   Serial.println("Time synchronized");
-}
-
-void sendtoThings() {
-  ThingSpeak.setField(1, previousWaterLevel);
-  ThingSpeak.setField(2, waterLevel);
-  ThingSpeak.setField(3, consumption);
-  ThingSpeak.setField(4, toreachGoal);
-  ThingSpeak.setField(5, actualconsumption);
-  ThingSpeak.setField(6, bottles);
-  ThingSpeak.setField(7, 0);
-  ThingSpeak.setField(8, asctime(&timeinfo));
-  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
 }
 
 void loop() {
@@ -264,6 +256,8 @@ void loop() {
   delay(15000);  //wait for 15s and take another measurement
 }
 
+// Utility function
+
 void I2C_Write(uint8_t deviceAddress, uint8_t regAddress, uint8_t data) {
   Wire.beginTransmission(deviceAddress);
   Wire.write(regAddress);
@@ -299,4 +293,16 @@ void MPU6050_Init() {
   I2C_Write(MPU6050SlaveAddress, MPU6050_REGISTER_INT_ENABLE, 0x01);
   I2C_Write(MPU6050SlaveAddress, MPU6050_REGISTER_SIGNAL_PATH_RESET, 0x00);
   I2C_Write(MPU6050SlaveAddress, MPU6050_REGISTER_USER_CTRL, 0x00);
+}
+
+void sendtoThings() {
+  ThingSpeak.setField(1, previousWaterLevel);
+  ThingSpeak.setField(2, waterLevel);
+  ThingSpeak.setField(3, consumption);
+  ThingSpeak.setField(4, toreachGoal);
+  ThingSpeak.setField(5, actualconsumption);
+  ThingSpeak.setField(6, bottles);
+  ThingSpeak.setField(7, 0);
+  ThingSpeak.setField(8, asctime(&timeinfo));
+  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
 }
