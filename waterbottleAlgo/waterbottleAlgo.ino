@@ -9,7 +9,7 @@
 #define led D0
 
 // Wi-Fi credentials
-const char* ssid = "networkname";   //"R15-8FB3";
+const char* ssid = "networkname";   //"";
 const char* password = "password";  //"";
 
 // MPU6050 Slave Device Address
@@ -47,21 +47,21 @@ const uint8_t MPU6050_REGISTER_SIGNAL_PATH_RESET = 0x68;
 int16_t AccelX, AccelY, AccelZ, Temperature, GyroX, GyroY, GyroZ;
 
 // Water consumption parameters
-float consumptionGoal = 600.0;
-float bottles = 0.0;
+float consumptionGoal = 600.0; // Set your daily water consumption goal (in ml)
+float bottles = 0.0; // Number of bottles consumed
 float waterLevel = 0.0;
 float previousWaterLevel;  // Set initial water level to full
-float consumption = 0;
-float height = 8.5;  // The height or volume of the bottle (depends on the units being used)
-float distance = 0;
+float consumption = 0; // Set initial water consumption to 0
+float height = 8.5;  //  Set the height of the bottle (in cm)
+float distance = 0; // Set initial distance to 0
 float toreachGoal = 0;
 int idletime = 0;
 float bottleConsumption = 0;
 float actualconsumption = 0;
 
 // Set your NTP Server and Timezone
-const char* ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 3600;
+const char* ntpServer = "pool.ntp.org"; // Set NTP server
+const long gmtOffset_sec = 3600; // Set GMT offset in seconds
 const int daylightOffset_sec = 0;
 
 RTC_DS1307 rtc;
@@ -98,7 +98,7 @@ void setup() {
 
   // Initialize the RTC module
   Wire.begin();
-  rtc.begin();
+  rtc.begin();  // Initialize RTC
 
   // Synchronize with NTP server
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
